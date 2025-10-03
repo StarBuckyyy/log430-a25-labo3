@@ -50,8 +50,7 @@ jobs:
           echo "REDIS_DB=0" >> .env
 
       - name: Run tests with pytest
-        run: pytest src/tests/
-
+        run: PYTHONPATH=src pytest
  
   deploy:
     needs: test

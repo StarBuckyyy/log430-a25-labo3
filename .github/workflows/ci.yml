@@ -19,7 +19,6 @@ jobs:
           MYSQL_PASSWORD: labo03
         ports:
           - 3306:3306
-        # Ajout du health check : GitHub attendra que cette commande réussisse
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1"
           --health-interval=10s
@@ -29,7 +28,6 @@ jobs:
         image: redis:7
         ports:
           - 6379:6379
-        # Ajout du health check pour Redis (bonne pratique)
         options: >-
           --health-cmd="redis-cli ping"
           --health-interval=10s
@@ -61,10 +59,14 @@ jobs:
           echo "REDIS_PORT=6379" >> .env
           echo "REDIS_DB=0" >> .env
 
-      # L'étape "Wait for MySQL" n'est plus nécessaire grâce aux health checks !
+      - name: Install MySQL Client
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+
+      - name: Initialize Database with init.sql
+        run: mysql -h 127.0.0.1 --port=3306 -u labo03 -plabo03 labo03_db < db-init/init.sql
+      
 
       - name: Run tests with pytest
-        # PYTHONPATH est nécessaire pour que les imports fonctionnent
         run: PYTHONPATH=src pytest -v src/tests/
  
   deploy:

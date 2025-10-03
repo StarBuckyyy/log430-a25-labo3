@@ -19,10 +19,22 @@ jobs:
           MYSQL_PASSWORD: labo03
         ports:
           - 3306:3306
+        # Ajout du health check : GitHub attendra que cette commande réussisse
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
       redis:
         image: redis:7
         ports:
           - 6379:6379
+        # Ajout du health check pour Redis (bonne pratique)
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     steps:
       - name: Checkout code
@@ -49,20 +61,11 @@ jobs:
           echo "REDIS_PORT=6379" >> .env
           echo "REDIS_DB=0" >> .env
 
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            if mysqladmin ping -h 127.0.0.1 -P 3306 -u labo03 -plabo03 --silent; then
-              echo "MySQL is up!"
-              break
-            fi
-            echo "Waiting for MySQL..."
-            sleep 2
-          done
-
+      # L'étape "Wait for MySQL" n'est plus nécessaire grâce aux health checks !
 
       - name: Run tests with pytest
-        run: PYTHONPATH=src pytest
+        # PYTHONPATH est nécessaire pour que les imports fonctionnent
+        run: PYTHONPATH=src pytest -v src/tests/
  
   deploy:
     needs: test
@@ -77,17 +80,9 @@ jobs:
         run: |
           echo "Starting deployment on the VM..."
           
-          # Arrête et supprime les anciens conteneurs pour éviter les conflits
           docker compose down
-          
-          # Reconstruit l'image de l'application pour inclure les derniers changements
-          # --no-cache garantit que la dernière version du code est utilisée
           docker compose build --no-cache
-          
-          # Démarre les services en mode détaché
           docker compose up -d
-          
-          # Nettoie les anciennes images non utilisées pour libérer de l'espace
           docker image prune -f
           
           echo "Deployment successful!"

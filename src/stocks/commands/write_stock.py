@@ -6,6 +6,7 @@ Auteurs : Gabriel C. Ullmann, Fabio Petrillo, 2025
 from sqlalchemy import text
 from stocks.models.stock import Stock
 from db import get_redis_conn, get_sqlalchemy_session
+from stocks.queries.read_product import get_product_by_id
 
 def set_stock_for_product(product_id, quantity):
     """Set stock quantity for product in MySQL"""
@@ -27,8 +28,19 @@ def set_stock_for_product(product_id, quantity):
             session.commit()
             response_message = f"rows added: {new_stock.product_id}"
   
+        product_info = get_product_by_id(product_id)
+        if not product_info:
+            raise ValueError(f"Product with ID {product_id} not found.")
+
+        redis_data = {
+            "quantity": quantity,
+            "name": product_info.get('name'),
+            "sku": product_info.get('sku'),
+            "price": product_info.get('price')
+        }
+
         r = get_redis_conn()
-        r.hset(f"stock:{product_id}", "quantity", quantity)
+        r.hset(f"stock:{product_id}", mapping=redis_data)        
         return response_message
     except Exception as e:
         session.rollback()
@@ -80,16 +92,20 @@ def update_stock_redis(order_items, operation):
             else:
                 product_id = item['product_id']
                 quantity = item['quantity']
-            # TODO: ajoutez plus d'information sur l'article
+            product_info = get_product_by_id(product_id)
             current_stock = r.hget(f"stock:{product_id}", "quantity")
             current_stock = int(current_stock) if current_stock else 0
             
-            if operation == '+':
-                new_quantity = current_stock + quantity
-            else:  
-                new_quantity = current_stock - quantity
+            new_quantity = current_stock + quantity if operation == '+' else current_stock - quantity
             
-            pipeline.hset(f"stock:{product_id}", "quantity", new_quantity)
+            redis_data = {
+                "quantity": new_quantity,
+                "name": product_info.get('name'),
+                "sku": product_info.get('sku'),
+                "price": product_info.get('price')
+            }
+            
+            pipeline.hset(f"stock:{product_id}", mapping=redis_data)
         
         pipeline.execute()
     

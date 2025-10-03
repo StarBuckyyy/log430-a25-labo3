@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -8,18 +8,37 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: labo03_db
+          MYSQL_USER: labo03
+          MYSQL_PASSWORD: labo03
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Creer fichier .env
+      - name: Creer fichier .env pour les tests
         run: |
           echo "DB_HOST=127.0.0.1" >> .env
           echo "DB_PORT=3306" >> .env
@@ -30,6 +49,34 @@ jobs:
           echo "REDIS_PORT=6379" >> .env
           echo "REDIS_DB=0" >> .env
 
-      - name: Run tests
-        working-directory: src
-        run: echo "Call pytest command here!"
+      - name: Run tests with pytest
+        run: pytest src/tests/
+
+ 
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy application with Docker Compose
+        run: |
+          echo "Starting deployment on the VM..."
+          
+          # Arrête et supprime les anciens conteneurs pour éviter les conflits
+          docker compose down
+          
+          # Reconstruit l'image de l'application pour inclure les derniers changements
+          # --no-cache garantit que la dernière version du code est utilisée
+          docker compose build --no-cache
+          
+          # Démarre les services en mode détaché
+          docker compose up -d
+          
+          # Nettoie les anciennes images non utilisées pour libérer de l'espace
+          docker image prune -f
+          
+          echo "Deployment successful!"

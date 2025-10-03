@@ -49,6 +49,18 @@ jobs:
           echo "REDIS_PORT=6379" >> .env
           echo "REDIS_DB=0" >> .env
 
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -u labo03 -plabo03 --silent; then
+              echo "MySQL is up!"
+              break
+            fi
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+
       - name: Run tests with pytest
         run: PYTHONPATH=src pytest
  

@@ -88,3 +88,4 @@ jobs:
           docker image prune -f
           
           echo "Deployment successful!"
+          
